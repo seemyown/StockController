@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 
 from objects import *
+from storage.datalayer import CityLayer
 
 
 class BaseAPI(APIRouter):
@@ -52,7 +53,7 @@ class BaseAPI(APIRouter):
             }
         )
 
-    def setup(self):
+    def setup_routers(self):
         ...
 
 
@@ -97,7 +98,7 @@ class StocksRouters(BaseAPI):
             total=len(stock_list)
         )
 
-    def setup(self):
+    def setup_routers(self):
         @self.post("/")
         def create_stock(stock: CreateStock):
             return self.create_new_stock(
@@ -113,6 +114,30 @@ class StocksRouters(BaseAPI):
         @self.get("/search")
         def search_stocks(query: str = None, criteria: str = None):
             return self.search_stock(criteria, query)
+
+
+class CitiesRouters(BaseAPI):
+    def __init__(self):
+        super().__init__(
+            prefix="/cities"
+        )
+
+    def setup_routers(self):
+        @self.get("/", response_model_exclude=[""])
+        def get_cities(stocks: bool = False):
+            cities_lst = CityLayer.get_cities(stocks)
+            return CitiesList(
+                items=cities_lst,
+                total=len(cities_lst)
+            )
+
+        @self.get("/search")
+        def search_cities(query: str = None):
+            cities_lst = CityLayer.search_city(query)
+            return CitiesList(
+                items=cities_lst,
+                total=len(cities_lst)
+            )
 
 
 
