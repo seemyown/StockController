@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 
 from objects import *
-from storage.datalayer import CityLayer
+from storage.datalayer import CityLayer, StockLayer, ItemLayer
 
 
 class BaseAPI(APIRouter):
@@ -61,59 +61,44 @@ class StocksRouters(BaseAPI):
     def __init__(self):
         super().__init__(prefix="/stocks")
 
-    def create_new_stock(self, stock_name, stock_city, stock_capability):
-        stock_id = random.randint(1, 100000)
-        new_stock = Stock(
-            id=stock_id,
-            name=stock_name,
-            city=stock_city,
-            remains=0,
-            capability=stock_capability,
-            free=100
-        ).model_dump()
-        self.save([new_stock], "stocks")
-        return self.success(f"StockID: {stock_id}", 201)
-
-    def get_stock(self, stock_id: int = None):
-        stock = self.load("stocks")
-
-        if stock_id is not None:
-            stock = stock.loc[stock["id"] == stock_id]
-
-        stock_list = stock.to_dict(orient="records")
-        return StockList(
-            items=[Stock.model_validate(_stock) for _stock in stock_list],
-            total=len(stock_list)
-        )
-
-    def search_stock(self, criteria: str = None, query: str = None):
-        stock_df = self.load("stocks")
-
-        if criteria is not None:
-            stock_df = stock_df.loc[stock_df[f"{criteria}"].str.contains(query)]
-
-        stock_list = stock_df.to_dict(orient="records")
-        return StockList(
-            items=[Stock.model_validate(_stock) for _stock in stock_list],
-            total=len(stock_list)
-        )
-
     def setup_routers(self):
         @self.post("/")
-        def create_stock(stock: CreateStock):
-            return self.create_new_stock(
-                stock_name=stock.name,
-                stock_city=stock.city,
-                stock_capability=stock.capability
+        def create_stock(body: CreateStock):
+            try:
+                new_stock = StockLayer.create_stock(body)
+                return {
+                    "statusCode": 200,
+                    "message": "Stock created",
+                    "data": new_stock
+                }
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400, detail={
+                        "statusCode": 400,
+                        "message": str(e)
+                    }
+                )
+
+        @self.get("/", response_model=StockList)
+        def get_stocks():
+            stocks_lst = StockLayer.get_stocks()
+            return StockList(
+                items=stocks_lst,
+                total=len(stocks_lst)
             )
 
-        @self.get("/")
-        def get_stocks(stock_id: int = None):
-            return self.get_stock(stock_id)
+        @self.get("/{_id}", response_model=StockFull)
+        def get_stock_by_id(_id: int):
+            stock = StockLayer.get_stock(_id)
+            return StockFull.model_validate(stock, from_attributes=True)
 
-        @self.get("/search")
-        def search_stocks(query: str = None, criteria: str = None):
-            return self.search_stock(criteria, query)
+        @self.delete("/{_id}")
+        def delete_stock_by_id(_id: int):
+            StockLayer.delete_stock(_id)
+            return {
+                "statusCode": 202,
+                "message": "Stock deleted"
+            }
 
 
 class CitiesRouters(BaseAPI):
@@ -123,27 +108,89 @@ class CitiesRouters(BaseAPI):
         )
 
     def setup_routers(self):
-        @self.get("/", response_model_exclude=[""])
-        def get_cities(stocks: bool = False):
-            cities_lst = CityLayer.get_cities(stocks)
-            return CitiesList(
-                items=cities_lst,
-                total=len(cities_lst)
-            )
+        @self.get("/", response_model=CitiesList | CitiesListExtended)
+        def get_cities(extend: bool = False):
+            if not extend:
+                cities_lst = CityLayer.get_cities()
+                return CitiesList(
+                    items=cities_lst,
+                    total=len(cities_lst)
+                )
+            else:
+                cities_lst = CityLayer.get_cities_extended()
+                return CitiesListExtended(
+                    items=cities_lst,
+                    total=len(cities_lst)
+                )
 
-        @self.get("/search")
-        def search_cities(query: str = None):
+        @self.get("/search", response_model=CitiesList)
+        def search_cities(query: str):
             cities_lst = CityLayer.search_city(query)
             return CitiesList(
                 items=cities_lst,
                 total=len(cities_lst)
+            ).model_dump(exclude_none=True)
+
+
+class ItemsRouters(BaseAPI):
+    def __init__(self):
+        super().__init__(
+            prefix="/items"
+        )
+
+    def setup_routers(self):
+        @self.post("/", status_code=201)
+        def create_item(body: CreateItem | CreateManyItems):
+            result = None
+            if isinstance(body, CreateItem):
+                result = ItemLayer.create_item(body)
+            elif isinstance(body, CreateManyItems):
+                result = ItemLayer.create_many_items(body)
+            return {
+                "statusCode": 201,
+                "data": result
+            }
+
+        @self.get("/", response_model=ItemsList)
+        def get_items():
+            items_lst = ItemLayer.get_items()
+            return ItemsList(
+                items=items_lst,
+                total=len(items_lst)
             )
 
+        @self.get("/{_id}", response_model=ItemFull)
+        def get_item_by_id(_id: int):
+            item = ItemLayer.get_item(_id)
+            return ItemFull.model_validate(item, from_attributes=True)
 
+        @self.delete("/", status_code=204)
+        def delete_items(data: UDBody):
+            try:
+                ItemLayer.delete_items(data)
 
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "statusCode": 400,
+                        "message": str(e)
+                    }
+                )
+            finally:
+                ItemLayer.stock_remains_update()
 
-
-        
-
-
-
+        @self.patch("/", status_code=204)
+        def update_items(data: UDBody):
+            try:
+                ItemLayer.update_items(data)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "statusCode": 400,
+                        "message": str(e)
+                    }
+                )
+            finally:
+                ItemLayer.stock_remains_update()

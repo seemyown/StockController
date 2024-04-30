@@ -2,14 +2,14 @@ import datetime
 from typing import Annotated
 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import BigInteger, ForeignKey, TIMESTAMP
+from sqlalchemy import BigInteger, ForeignKey, TIMESTAMP, Integer
 
 from storage.connection import engine
 
 
 IntPK = Annotated[
     int,
-    mapped_column(BigInteger, primary_key=True)
+    mapped_column(Integer, primary_key=True, autoincrement=True)
 ]
 DateUpdate = Annotated[
     datetime.datetime,
@@ -49,6 +49,7 @@ class Stocks(Base):
 
     _city: Mapped["Cities"] = relationship(
         back_populates="stocks",
+        lazy="joined",
     )
 
     @property
@@ -104,7 +105,7 @@ class Items(Base):
     currencyCode: Mapped[str] = mapped_column(default="RUB")
     barcode: Mapped[int]
 
-    remains: Mapped["ItemsStocks"] = relationship(
+    remains: Mapped[list["ItemsStocks"]] = relationship(
         back_populates="item",
         lazy="joined"
     )
@@ -121,7 +122,24 @@ class ItemsStocks(Base):
 
     item: Mapped["Items"] = relationship(
         back_populates="remains",
+        lazy="joined"
     )
+
+    @property
+    def name(self):
+        return self.item.name
+
+    @property
+    def article(self):
+        return self.item.article
+
+    @property
+    def description(self):
+        return self.item.description
+
+    @property
+    def price(self):
+        return self.item.price
 
     stocks: Mapped[list["Stocks"]] = relationship(
         back_populates="items",

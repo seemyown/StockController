@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from controllers.routing import StocksRouters, CitiesRouters
+from controllers.routing import StocksRouters, CitiesRouters, ItemsRouters
 from storage.models import create_all_tables
 
 
@@ -28,6 +28,8 @@ class App(FastAPI):
         stocks.setup_routers()
         cities = CitiesRouters()
         cities.setup_routers()
+        items = ItemsRouters()
+        items.setup_routers()
 
         @self.get("/")
         def root():
@@ -35,7 +37,7 @@ class App(FastAPI):
 
         self.include_router(stocks, prefix="/api", tags=["Stocks"])
         self.include_router(cities, prefix="/api", tags=["Cities"])
-
+        self.include_router(items, prefix="/api", tags=["Items"])
 
 app = App()
 
