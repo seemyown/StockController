@@ -110,48 +110,6 @@ class StockLayer(DataLayer):
 class ItemLayer(DataLayer):
     @staticmethod
     @session_decorator
-    def create_item(session, data: CreateItem):
-        try:
-            item_id = random.randint(9999, 999999)
-            if data.barcode is None:
-                data.barcode = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
-
-            new_item = Items(
-                id=item_id,
-                article=data.article,
-                barcode=data.barcode,
-                name=data.name,
-                description=data.description,
-                price=data.price,
-                currencyCode=data.currencyCode,
-            )
-            session.add(new_item)
-            session.flush()
-            stocks = []
-            for stock in data.stockIds:
-                stocks.append(ItemsStocks(
-                    itemId=item_id,
-                    stockId=stock.id,
-                    remains=stock.remains
-                ))
-            session.add_all(stocks)
-            session.commit()
-            return [{
-                "id": new_item.id,
-                "article": data.article,
-                "status": "imported",
-                "err": ""
-            }]
-        except IntegrityError as e:
-            return [{
-                "id": -1,
-                "article": data.article,
-                "status": "declined",
-                "err": str(e)
-            }]
-
-    @staticmethod
-    @session_decorator
     def create_many_items(session, items: CreateManyItems):
         created_item = []
         for data in items.items:

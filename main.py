@@ -39,6 +39,7 @@ class App(FastAPI):
         self.include_router(cities, prefix="/api", tags=["Cities"])
         self.include_router(items, prefix="/api", tags=["Items"])
 
+
 app = App()
 
 if __name__ == "__main__":

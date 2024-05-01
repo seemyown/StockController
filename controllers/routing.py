@@ -1,9 +1,4 @@
-import os.path
-import random
-
-import pandas as pd
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
 
 from objects import *
 from storage.datalayer import CityLayer, StockLayer, ItemLayer
@@ -13,33 +8,6 @@ class BaseAPI(APIRouter):
     def __init__(self, prefix):
         super().__init__(
             prefix=prefix
-        )
-
-    @staticmethod
-    def save(data, table):
-        path = f"./storage/{table}.csv"
-        if os.path.exists(path):
-            pd.DataFrame(data).to_csv(
-                path, index=False, header=False, mode="a"
-            )
-        else:
-            pd.DataFrame(data).to_csv(path, index=False)
-
-    def load(self, table):
-        path = f"./storage/{table}.csv"
-        try:
-            return pd.read_csv(path, low_memory=False)
-        except FileNotFoundError as e:
-            raise self.error("File does not exist", 500, e)
-
-    @staticmethod
-    def success(message, code):
-        return JSONResponse(
-            status_code=code,
-            content={
-                "statusCode": code,
-                "message": message
-            }
         )
 
     @staticmethod
@@ -72,12 +40,7 @@ class StocksRouters(BaseAPI):
                     "data": new_stock
                 }
             except Exception as e:
-                raise HTTPException(
-                    status_code=400, detail={
-                        "statusCode": 400,
-                        "message": str(e)
-                    }
-                )
+                self.error(str(e), 400, e)
 
         @self.get("/", response_model=StockList)
         def get_stocks():
@@ -140,12 +103,8 @@ class ItemsRouters(BaseAPI):
 
     def setup_routers(self):
         @self.post("/", status_code=201)
-        def create_item(body: CreateItem | CreateManyItems):
-            result = None
-            if isinstance(body, CreateItem):
-                result = ItemLayer.create_item(body)
-            elif isinstance(body, CreateManyItems):
-                result = ItemLayer.create_many_items(body)
+        def create_item(body: CreateManyItems):
+            result = ItemLayer.create_many_items(body)
             return {
                 "statusCode": 201,
                 "data": result
@@ -170,13 +129,7 @@ class ItemsRouters(BaseAPI):
                 ItemLayer.delete_items(data)
 
             except Exception as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "statusCode": 400,
-                        "message": str(e)
-                    }
-                )
+                self.error(str(e), 404, e)
             finally:
                 ItemLayer.stock_remains_update()
 
@@ -185,12 +138,6 @@ class ItemsRouters(BaseAPI):
             try:
                 ItemLayer.update_items(data)
             except Exception as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "statusCode": 400,
-                        "message": str(e)
-                    }
-                )
+                self.error(str(e), 404, e)
             finally:
                 ItemLayer.stock_remains_update()
